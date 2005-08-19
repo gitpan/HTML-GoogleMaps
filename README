@@ -1,81 +1,82 @@
-HTML::GoogleMaps(3)   User Contributed Perl Documentation  HTML::GoogleMaps(3)
+NAME
+    HTML::GoogleMaps - a simple wrapper around the Google Maps API
 
+SYNOPSIS
+      $map = HTML::GoogleMaps->new(key => $map_key,
+                                   db => $geo_coder_us_db);
+      $map->center(point => "1810 Melrose St, Madison, WI");
+      $map->add_marker(point => "1210 W Dayton St, Madison, WI");
+ 
+      my ($head, $body) = $map->render;
 
+DESCRIPTION
+    HTML::GoogleMaps provides a simple wrapper around the Google Maps API.
+    It allows you to easily create maps with markers, polylines and
+    information windows. If you have Geo::Coder::US installed, it will be
+    able to do basic geocoding for US addresses.
 
-NNAAMMEE
-       HTML::GoogleMaps - a simple wrapper around the Google Maps API
+CONSTRUCTOR
+    $map = HTML::GoogleMaps->new(key => $map_key);
+        Creates a new HTML::GoogleMaps object. Takes a hash of options. The
+        only required option is *key*, which is your Google Maps API key.
+        You can get a key at http://maps.google.com/apis/maps/signup.html .
+        Other valid options are:
 
-SSYYNNOOPPSSIISS
-         $map = HTML::GoogleMaps->new(key => $map_key,
-                                      db => $geo_coder_us_db);
-         $map->center(point => "1810 Melrose St, Madison, WI");
-         $map->add_marker(point => "1210 W Dayton St, Madison, WI");
+        db => Geo::Coder::US database
+            If given, the add_marker and add_polyline methods will be able
+            to map US addresses, as well as longitude/latitude pairs.
 
-         my ($head, $body) = $map->render;
+        height => height in pixels
+        width => width in pixels
 
-DDEESSCCRRIIPPTTIIOONN
-       HTML::GoogleMaps provides a simple wrapper around the Google Maps API.
-       It allows you to easily create maps with markers, polylines and infor-
-       mation windows.  If you have Geo::Coder::US installed, it will be able
-       to do basic geocoding for US addresses.
+METHODS
+    $map->center($point)
+        Center the map at a given point.
 
-CCOONNSSTTRRUUCCTTOORR
-       $map = HTML::GoogleMaps->new(key => $map_key);
-           Creates a new HTML::GoogleMaps object.  Takes a hash of options.
-           The only required option is _k_e_y, which is your Google Maps API key.
-           You can get a key at http://maps.google.com/apis/maps/signup.html .
-           Other valid options are:
+    $map->zoom($level)
+        Set the zoom level
 
-           db => Geo::Coder::US database
-               If given, the aadddd__mmaarrkkeerr and aadddd__ppoollyylliinnee methods will be able
-               to map US addresses, as well as longitude/latitude pairs.
+    $map->controls($control1, $control2)
+        Enable the given controls. Valid controls are: large_map_control,
+        small_map_control, small_zoom_control and map_type_control.
 
-           height => height in pixels
-           width => width in pixels
+    $map->dragging($enable)
+        Enable or disable dragging.
 
-MMEETTHHOODDSS
-       $map->center($point)
-           Center the map at a given point.
+    $map->info_window($enable)
+        Enable or disable info windows.
 
-       $map->zoom($level)
-           Set the zoom level
+    $map->map_type($type)
+        Set the map type. Either map_type or satellite_type.
 
-       $map->controls($control1, $control2)
-           Enable the given controls.  Valid controls are: llaarrggee__mmaapp__ccoonnttrrooll,
-           ssmmaallll__mmaapp__ccoonnttrrooll, ssmmaallll__zzoooomm__ccoonnttrrooll and mmaapp__ttyyppee__ccoonnttrrooll.
+    $map->add_icon(name => $icon_name, image => $image_url, shadow =>
+    $shadow_url, image_size => [ $width, $height ], shadow_size => [ $width,
+    $height ]);
+        Adds a new icon, which can later be used by add_marker. Optional
+        args include icon_anchor and info_window_anchor.
 
-       $map->dragging($enable)
-           Enable or disable dragging.
+    $map->add_marker(point => $point, html => $info_window_html)
+        Add a marker to the map at the given point. If html is specified,
+        add a popup info window as well. icon can be used to switch to
+        either a user defined icon (via the name) or a standard google
+        letter icon (A-J).
 
-       $map->info_window($enable)
-           Enable or disable info windows.
+    $map->add_polyline(points => [ $point1, $point2 ])
+        Add a polyline that connects the list of points. Other options
+        include color (any valid HTML color), weight (line width in pixels)
+        and opacity (between 0 and 1).
 
-       $map->map_type($type)
-           Set the map type.  Either mmaapp__ttyyppee or ssaatteelllliittee__ttyyppee.
+    $map->render
+        Renders the map and returns a two element list. The first element
+        needs to be placed in the head section of your HTML document. The
+        second in the body where you want the map to appear.
 
-       $map->add_marker(point => $point, html => $info_window_html)
-           Add a marker to the map at the given point.  If hhttmmll is specified,
-           add a popup info window as well.
+ONLINE EXAMPLE
+    <http://www.cs.wisc.edu/~nmueller/fsbo_open_houses.pl>
 
-       $map->add_polyline(points => [ $point1, $point2 ])
-           Add a polyline that connects the list of points.  Other options
-           include ccoolloorr (any valid HTML color), wweeiigghhtt (line width in pixels)
-           and ooppaacciittyy (between 0 and 1).
+SEE ALSO
+    <http://maps.google.com/apis/maps/documentation> <http://geocoder.us>
 
-       $map->render
-           Renders the map and returns a two element list.  The first element
-           needs to be placed in the head section of your HTML document.  The
-           second in the body where you want the map to appear.
+AUTHORS
+    Nate Mueller <nate@cs.wisc.edu>
 
-OONNLLIINNEE EEXXAAMMPPLLEE
-       <http://www.cs.wisc.edu/~nmueller/fsbo_open_houses.pl>
-
-SSEEEE AALLSSOO
-       <http://maps.google.com/apis/maps/documentation> <http://geocoder.us>
-
-AAUUTTHHOORRSS
-       Nate Mueller <nate@cs.wisc.edu>
-
-
-
-perl v5.8.3                       2005-07-03               HTML::GoogleMaps(3)

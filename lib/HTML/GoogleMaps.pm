@@ -73,10 +73,21 @@ Enable or disable info windows.
 
 Set the map type.  Either B<map_type> or B<satellite_type>.
 
+=item $map->add_icon(name => $icon_name,
+                     image => $image_url,
+                     shadow => $shadow_url,
+                     image_size => [ $width, $height ],
+                     shadow_size => [ $width, $height ]);
+
+Adds a new icon, which can later be used by add_marker.  Optional args
+include B<icon_anchor> and B<info_window_anchor>.
+
 =item $map->add_marker(point => $point, html => $info_window_html)
 
 Add a marker to the map at the given point.  If B<html> is specified,
-add a popup info window as well.
+add a popup info window as well.  B<icon> can be used to switch to
+either a user defined icon (via the name) or a standard google letter
+icon (A-J).
 
 =item $map->add_polyline(points => [ $point1, $point2 ])
 
@@ -111,7 +122,7 @@ package HTML::GoogleMaps;
 
 use strict;
 
-our $VERSION = 1;
+our $VERSION = 2;
 
 sub new
 {
@@ -150,6 +161,90 @@ sub _text_to_point
 
     # Unknown
     return 0;
+}
+
+=begin testing
+
+use HTML::GoogleMaps;
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [0, 0]);
+is_deeply($map->_find_center, [0, 0], "Single point 1");
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [90, 0]);
+is_deeply($map->_find_center, [90, 0], "Single point 2");
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [180, 45]);
+is_deeply($map->_find_center, [180, 45], "Single point 3");
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [-90, -10]);
+is_deeply($map->_find_center, [-90, -10], "Single point 4");
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [10, 10]);
+$map->add_marker(point => [20, 20]);
+is_deeply($map->_find_center, [15, 15], "Double point 1");
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [-10, 10]);
+$map->add_marker(point => [-20, 20]);
+is_deeply($map->_find_center, [-15, 15], "Double point 2");
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [10, 10]);
+$map->add_marker(point => [-10, -10]);
+is_deeply($map->_find_center, [0, 0], "Double point 3");
+
+$map = new HTML::GoogleMaps key => "foo";
+$map->add_marker(point => [-170, 0]);
+$map->add_marker(point => [150, 0]);
+is_deeply($map->_find_center, [170, 0], "Double point 4");
+
+=end testing
+
+=cut
+
+sub _find_center
+{
+    my ($this) = @_;
+
+    my $total_lat;
+    my $total_long;
+    my $total_abs_long;
+    foreach my $point (@{$this->{points}})
+    {
+	$total_lat += $point->{point}[1];
+	$total_long += $point->{point}[0];
+	$total_abs_long += abs($point->{point}[0]);
+    }
+    
+    # Latitude is easy, just an average
+    my $center_lat = $total_lat/@{$this->{points}};
+    
+    # Longitude, on the other hand, is trickier.  If points are
+    # clustered around the international date line a raw average
+    # would produce a center around longitude 0 instead of -180.
+    my $avg_long = $total_long/@{$this->{points}};
+    my $avg_abs_long = $total_abs_long/@{$this->{points}};
+    return [ $avg_long, $center_lat ]       # All points are on the
+	if abs($avg_long) == $avg_abs_long; # same hemasphere
+
+    if ($avg_abs_long > 90) # Closer to the IDL
+    {
+	if ($avg_long < 0 && abs($avg_long) <= 90)
+	{
+	    $avg_long += 180;
+	}
+	elsif (abs($avg_long) <= 90)
+	{
+	    $avg_long -= 180;
+	}
+    }
+
+    return [ $avg_long, $center_lat ];
 }
 
 sub center
@@ -212,11 +307,25 @@ sub add_marker
 {
     my ($this, %opts) = @_;
     
+    return 0 if $opts{icon} && $opts{icon} !~ /^[A-J]$/
+	&& !$this->{icon_hash}{$opts{icon}};
+
     my $point = $this->_text_to_point($opts{point});
     return 0 unless $point;
 
     push @{$this->{points}}, { point => $point,
+			       icon => $opts{icon},
 			       html => $opts{html} };
+}
+
+sub add_icon
+{
+    my ($this, %opts) = @_;
+
+    return 0 unless $opts{image} && $opts{shadow} && $opts{name};
+    
+    $this->{icon_hash}{$opts{name}} = 1;
+    push @{$this->{icons}}, \%opts;
 }
 
 sub add_polyline
@@ -243,7 +352,7 @@ sub render
     $this->{info_window} = 1 unless defined $this->{info_window};
     $this->{type} ||= "map_type";
     $this->{zoom} ||= 4;
-    $this->{center} ||= [ 0, 0 ];
+    $this->{center} ||= $this->_find_center;
 
     my $text = "
 <div id=map style=\"width: $this->{width}px; height: $this->{height}px\"></div>
@@ -256,8 +365,8 @@ sub render
     $text .= "      map.centerAndZoom(new GPoint($this->{center}[0], $this->{center}[1]), $this->{zoom});\n"
 	if $this->{center};
 
-    #my $type = "G_" . uc($this->{type});
-    #$text .= "      map.setMapType($type);\n";
+    my $type = "G_" . uc($this->{type});
+    $text .= "      map.setMapType($type);\n";
     
     if ($this->{controls})
     {
@@ -268,12 +377,48 @@ sub render
 	    $text .= "      map.addControl(new G${control}());\n";
 	}
     }
+    $text .= "\n";
 
+    # Add in "standard" icons
+    my %icons = map { $_->{icon} => 1 } grep { $_->{icon} =~ /^([A-J])$/; } @{$this->{points}};
+    foreach my $icon (keys %icons)
+    {
+	$text .= "      var icon_$icon = new GIcon();
+      icon_$icon.shadow = \"http://www.google.com/mapfiles/shadow50.png\";
+      icon_$icon.iconSize = new GSize(20, 34);
+      icon_$icon.shadowSize = new GSize(37, 34);
+      icon_$icon.iconAnchor = new GPoint(9, 34);
+      icon_$icon.infoWindowAnchor = new GPoint(9, 2);
+      icon_$icon.image = \"http://www.google.com/mapfiles/marker$icon.png\";\n\n"
+    }
+
+    # And the rest
+    foreach my $icon (@{$this->{icons}})
+    {
+	$text .= "      var icon_$icon->{name} = new GIcon();\n";
+	$text .= "      icon_$icon->{name}.shadow = \"$icon->{shadow}\"\n"
+	    if $icon->{shadow};
+	$text .= "      icon_$icon->{name}.iconSize = new GSize($icon->{icon_size}[0], $icon->{icon_size}[1]);\n"
+	    if ref($icon->{icon_size}) eq "ARRAY";
+	$text .= "      icon_$icon->{name}.shadowSize = new GSize($icon->{shadow_size}[0], $icon->{shadow_size}[1]);\n"
+	    if ref($icon->{shadow_size}) eq "ARRAY";
+	$text .= "      icon_$icon->{name}.iconAnchor = new GPoint($icon->{icon_anchor}[0], $icon->{icon_anchor}[1]);\n"
+	    if ref($icon->{icon_anchor}) eq "ARRAY";
+	$text .= "      icon_$icon->{name}.infoWindowAnchor = new GPoint($icon->{info_window_anchor}[0], $icon->{info_window_anchor}[1]);\n"
+	    if ref($icon->{info_window_anchor}) eq "ARRAY";
+	$text .= "      icon_$icon->{name}.image = \"$icon->{image}\";\n\n";
+    }
+    
     my $i;
     foreach my $point (@{$this->{points}})
     {
 	$i++;
-	$text .= "      var marker_$i = new GMarker(new GPoint($point->{point}[0], $point->{point}[1]));\n";
+	
+	$point->{icon} =~ s/(.*)/icon_$1/;
+	my $icon = ", $point->{icon}"
+	    if $point->{icon};
+
+	$text .= "      var marker_$i = new GMarker(new GPoint($point->{point}[0], $point->{point}[1]) $icon);\n";
 	$text .= "      GEvent.addListener(marker_$i, \"click\", function () {  marker_$i.openInfoWindowHtml(\"$point->{html}\"); });\n"
 	    if $point->{html};
 	$text .= "      map.addOverlay(marker_$i);\n";
