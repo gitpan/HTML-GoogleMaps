@@ -7,7 +7,11 @@ SYNOPSIS
       $map->center(point => "1810 Melrose St, Madison, WI");
       $map->add_marker(point => "1210 W Dayton St, Madison, WI");
  
-      my ($head, $body) = $map->render;
+      my ($head, $map_div, $map_script) = $map->render;
+
+NOTE
+    This version is not API compatable with HTML::GoogleMaps versions 1 and
+    2.  The render method now returns three values instead of two.
 
 DESCRIPTION
     HTML::GoogleMaps provides a simple wrapper around the Google Maps API.

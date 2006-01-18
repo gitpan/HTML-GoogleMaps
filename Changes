@@ -8,3 +8,7 @@ Revision history for Perl extension HTML::GoogleMaps.
 	Added support for additional icons
 	Took out strange 5.8.6 requirement added by h2xs
 	Thanks to Suresh Govindachar for his input
+
+3     Jan 18, 2006
+        By default, wrap popup html in a 350px by 250px
+        Split up the output of render into three parts to help IE support

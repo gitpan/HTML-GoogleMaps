@@ -9,7 +9,12 @@ HTML::GoogleMaps - a simple wrapper around the Google Maps API
   $map->center(point => "1810 Melrose St, Madison, WI");
   $map->add_marker(point => "1210 W Dayton St, Madison, WI");
  
-  my ($head, $body) = $map->render;
+  my ($head, $map_div, $map_script) = $map->render;
+
+=head1 NOTE
+
+This version is not API compatable with HTML::GoogleMaps versions 1
+and 2.  The render method now returns three values instead of two.
 
 =head1 DESCRIPTION
 
@@ -89,6 +94,10 @@ add a popup info window as well.  B<icon> can be used to switch to
 either a user defined icon (via the name) or a standard google letter
 icon (A-J).
 
+Any data given for B<html> is placed inside a 350px by 200px div to
+make it fit nicely into the Google popup.  To turn this behavior off 
+just pass B<noformat> => 1 as well.
+
 =item $map->add_polyline(points => [ $point1, $point2 ])
 
 Add a polyline that connects the list of points.  Other options
@@ -97,9 +106,11 @@ pixels) and B<opacity> (between 0 and 1).
 
 =item $map->render
 
-Renders the map and returns a two element list.  The first element
+Renders the map and returns a three element list.  The first element
 needs to be placed in the head section of your HTML document.  The
-second in the body where you want the map to appear.
+second in the body where you want the map to appear.  The third (the 
+Javascript that controls the map) needs to be placed in the body,
+but outside any div or table that the map lies inside.
 
 =back
 
@@ -122,7 +133,7 @@ package HTML::GoogleMaps;
 
 use strict;
 
-our $VERSION = 2;
+our $VERSION = 3;
 
 sub new
 {
@@ -315,7 +326,8 @@ sub add_marker
 
     push @{$this->{points}}, { point => $point,
 			       icon => $opts{icon},
-			       html => $opts{html} };
+			       html => $opts{html},
+			       format => !$opts{noformat} };
 }
 
 sub add_icon
@@ -354,8 +366,10 @@ sub render
     $this->{zoom} ||= 4;
     $this->{center} ||= $this->_find_center;
 
+    my $map = "
+<div id=map style=\"width: $this->{width}px; height: $this->{height}px\"></div>";
+
     my $text = "
-<div id=map style=\"width: $this->{width}px; height: $this->{height}px\"></div>
     <script type=text/javascript>
     //<![CDATA[
 
@@ -414,12 +428,18 @@ sub render
     {
 	$i++;
 	
-	$point->{icon} =~ s/(.*)/icon_$1/;
+	$point->{icon} =~ s/(.+)/icon_$1/;
 	my $icon = ", $point->{icon}"
 	    if $point->{icon};
 
+	my $point_html = $point->{html};
+	if ($point->{format})
+	{
+	    $point_html = "<div style='width:350px;height:200px;'>$point->{html}</div>";
+	}
+
 	$text .= "      var marker_$i = new GMarker(new GPoint($point->{point}[0], $point->{point}[1]) $icon);\n";
-	$text .= "      GEvent.addListener(marker_$i, \"click\", function () {  marker_$i.openInfoWindowHtml(\"$point->{html}\"); });\n"
+	$text .= "      GEvent.addListener(marker_$i, \"click\", function () {  marker_$i.openInfoWindowHtml(\"$point_html\"); });\n"
 	    if $point->{html};
 	$text .= "      map.addOverlay(marker_$i);\n";
     }
@@ -440,7 +460,7 @@ sub render
     //]]>
     </script>";
 
-    return ("<script src=http://maps.google.com/maps?file=api&v=1&key=$this->{key} type=text/javascript></script>", $text);
+    return ("<script src=http://maps.google.com/maps?file=api&v=1&key=$this->{key} type=text/javascript></script>", $map, $text);
 }
 
 1;
