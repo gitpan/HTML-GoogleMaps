@@ -59,7 +59,14 @@ Center the map at a given point.
 
 =item $map->zoom($level)
 
-Set the zoom level
+Set the old V1 zoom level (0 is finest).  Zoom levels may change
+without notice, and some time in the future this method will be
+replace by v2_zoom.  You should probably no use it and update any
+code that already does.
+
+=item $map->v2_zoom($level)
+
+Set the new zoom level (0 is corsest)
 
 =item $map->controls($control1, $control2)
 
@@ -76,16 +83,20 @@ Enable or disable info windows.
 
 =item $map->map_type($type)
 
-Set the map type.  Either B<map_type> or B<satellite_type>.
+Set the map type.  Either B<normal>, B<satellite> or B<hybrid>.  The
+v1 API B<map_type> or B<satellite_type> still work, but may be dropped
+in a future version.
 
 =item $map->add_icon(name => $icon_name,
                      image => $image_url,
                      shadow => $shadow_url,
                      image_size => [ $width, $height ],
-                     shadow_size => [ $width, $height ]);
+                     shadow_size => [ $width, $height ],
+                     icon_anchor => [ $x, $y ],
+                     info_window_anchor => [ $x, $y ]);
 
-Adds a new icon, which can later be used by add_marker.  Optional args
-include B<icon_anchor> and B<info_window_anchor>.
+Adds a new icon, which can later be used by add_marker.  All args
+are required except for info_window_anchor.
 
 =item $map->add_marker(point => $point, html => $info_window_html)
 
@@ -133,7 +144,7 @@ package HTML::GoogleMaps;
 
 use strict;
 
-our $VERSION = 3;
+our $VERSION = 4;
 
 sub new
 {
@@ -158,7 +169,7 @@ sub _text_to_point
     my ($this, $point_text) = @_;
 
     # IE, already a long/lat pair
-    return $point_text if ref($point_text) eq "ARRAY";
+    return [reverse @$point_text] if ref($point_text) eq "ARRAY";
 
     # US street address
     if ($this->{db})
@@ -166,7 +177,7 @@ sub _text_to_point
 	my ($point) = Geo::Coder::US->geocode($point_text);
 	if ($point->{lat})
 	{
-	    return [ $point->{long}, $point->{lat} ];
+	    return [ $point->{lat}, $point->{long} ];
 	}
     }
 
@@ -174,62 +185,21 @@ sub _text_to_point
     return 0;
 }
 
-=begin testing
-
-use HTML::GoogleMaps;
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [0, 0]);
-is_deeply($map->_find_center, [0, 0], "Single point 1");
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [90, 0]);
-is_deeply($map->_find_center, [90, 0], "Single point 2");
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [180, 45]);
-is_deeply($map->_find_center, [180, 45], "Single point 3");
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [-90, -10]);
-is_deeply($map->_find_center, [-90, -10], "Single point 4");
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [10, 10]);
-$map->add_marker(point => [20, 20]);
-is_deeply($map->_find_center, [15, 15], "Double point 1");
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [-10, 10]);
-$map->add_marker(point => [-20, 20]);
-is_deeply($map->_find_center, [-15, 15], "Double point 2");
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [10, 10]);
-$map->add_marker(point => [-10, -10]);
-is_deeply($map->_find_center, [0, 0], "Double point 3");
-
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [-170, 0]);
-$map->add_marker(point => [150, 0]);
-is_deeply($map->_find_center, [170, 0], "Double point 4");
-
-=end testing
-
-=cut
-
 sub _find_center
 {
     my ($this) = @_;
+
+    # Null case
+    return unless @{$this->{points}};
 
     my $total_lat;
     my $total_long;
     my $total_abs_long;
     foreach my $point (@{$this->{points}})
     {
-	$total_lat += $point->{point}[1];
-	$total_long += $point->{point}[0];
-	$total_abs_long += abs($point->{point}[0]);
+	$total_lat += $point->{point}[0];
+	$total_long += $point->{point}[1];
+	$total_abs_long += abs($point->{point}[1]);
     }
     
     # Latitude is easy, just an average
@@ -240,7 +210,7 @@ sub _find_center
     # would produce a center around longitude 0 instead of -180.
     my $avg_long = $total_long/@{$this->{points}};
     my $avg_abs_long = $total_abs_long/@{$this->{points}};
-    return [ $avg_long, $center_lat ]       # All points are on the
+    return [ $center_lat, $avg_long ]       # All points are on the
 	if abs($avg_long) == $avg_abs_long; # same hemasphere
 
     if ($avg_abs_long > 90) # Closer to the IDL
@@ -255,7 +225,7 @@ sub _find_center
 	}
     }
 
-    return [ $avg_long, $center_lat ];
+    return [ $center_lat, $avg_long ];
 }
 
 sub center
@@ -270,6 +240,13 @@ sub center
 }
 
 sub zoom
+{
+    my ($this, $zoom_level) = @_;
+
+    $this->{zoom} = 17-$zoom_level;
+}
+
+sub v2_zoom
 {
     my ($this, $zoom_level) = @_;
 
@@ -307,11 +284,14 @@ sub map_type
 {
     my ($this, $type) = @_;
 
-    my %valid_types = map { $_ => 1 } qw(map_type
-					 satellite_type);
+    my %valid_types = (map_type => 'G_NORMAL_MAP',
+		       satellite_type => 'G_SATELLITE_MAP',
+		       normal => 'G_NORMAL_MAP',
+		       satellite => 'G_SATELLITE_MAP',
+		       hybrid => 'G_HYBRID_MAP');
     return 0 unless $valid_types{$type};
 
-    $this->{type} = $type;
+    $this->{type} = $valid_types{$type};
 }
 
 sub add_marker
@@ -362,8 +342,8 @@ sub render
     $this->{width} ||= 600;
     $this->{dragging} = 1 unless defined $this->{dragging};
     $this->{info_window} = 1 unless defined $this->{info_window};
-    $this->{type} ||= "map_type";
-    $this->{zoom} ||= 4;
+    $this->{type} ||= "G_NORMAL_MAP";
+    $this->{zoom} ||= 13;
     $this->{center} ||= $this->_find_center;
 
     my $map = "
@@ -374,13 +354,14 @@ sub render
     //<![CDATA[
 
     if (GBrowserIsCompatible()) {
-      var map = new GMap(document.getElementById(\"map\"));\n";
+      var map = new GMap2(document.getElementById(\"map\"));\n";
 
-    $text .= "      map.centerAndZoom(new GPoint($this->{center}[0], $this->{center}[1]), $this->{zoom});\n"
+    $text .= "      map.setCenter(new GLatLng($this->{center}[0], $this->{center}[1]));\n"
 	if $this->{center};
+    $text .= "      map.setZoom($this->{zoom});\n"
+	if $this->{zoom};
 
-    my $type = "G_" . uc($this->{type});
-    $text .= "      map.setMapType($type);\n";
+    $text .= "      map.setMapType($this->{type});\n";
     
     if ($this->{controls})
     {
@@ -394,7 +375,9 @@ sub render
     $text .= "\n";
 
     # Add in "standard" icons
-    my %icons = map { $_->{icon} => 1 } grep { $_->{icon} =~ /^([A-J])$/; } @{$this->{points}};
+    my %icons = map { $_->{icon} => 1 } 
+      grep { defined $_->{icon} && $_->{icon} =~ /^([A-J])$/; } 
+      @{$this->{points}};
     foreach my $icon (keys %icons)
     {
 	$text .= "      var icon_$icon = new GIcon();
@@ -428,17 +411,19 @@ sub render
     {
 	$i++;
 	
-	$point->{icon} =~ s/(.+)/icon_$1/;
-	my $icon = ", $point->{icon}"
-	    if $point->{icon};
+	my $icon = '';
+	if (defined $point->{icon}) {
+	    $point->{icon} =~ s/(.+)/icon_$1/;
+	    $icon = ", $point->{icon}";
+	}
 
 	my $point_html = $point->{html};
-	if ($point->{format})
+	if ($point->{format} && $point->{html})
 	{
 	    $point_html = "<div style='width:350px;height:200px;'>$point->{html}</div>";
 	}
 
-	$text .= "      var marker_$i = new GMarker(new GPoint($point->{point}[0], $point->{point}[1]) $icon);\n";
+	$text .= "      var marker_$i = new GMarker(new GLatLng($point->{point}[0], $point->{point}[1]) $icon);\n";
 	$text .= "      GEvent.addListener(marker_$i, \"click\", function () {  marker_$i.openInfoWindowHtml(\"$point_html\"); });\n"
 	    if $point->{html};
 	$text .= "      map.addOverlay(marker_$i);\n";
@@ -448,10 +433,8 @@ sub render
     foreach my $polyline (@{$this->{poly_lines}})
     {
 	$i++;
-	my $points = "[" . join(", ", map { "new GPoint($_->[0],
-    $_->[1])" } @{$polyline->{points}}) . "]";
-	$text .= "      var polyline_$i = new GPolyline($points,
-    \"$polyline->{color}\", $polyline->{weight}, $polyline->{opacity});\n";
+	my $points = "[" . join(", ", map { "new GLatLng($_->[0], $_->[1])" } @{$polyline->{points}}) . "]";
+	$text .= "      var polyline_$i = new GPolyline($points, \"$polyline->{color}\", $polyline->{weight}, $polyline->{opacity});\n";
 	$text .= "      map.addOverlay(polyline_$i);\n";
     }
 
@@ -460,7 +443,7 @@ sub render
     //]]>
     </script>";
 
-    return ("<script src=http://maps.google.com/maps?file=api&v=1&key=$this->{key} type=text/javascript></script>", $map, $text);
+    return ("<script src=http://maps.google.com/maps?file=api&v=2&key=$this->{key} type=text/javascript></script>", $map, $text);
 }
 
 1;

@@ -5,4 +5,3 @@ MANIFEST			This list of files
 META.yml
 README
 t/HTML-GoogleMaps.t
-test.pl

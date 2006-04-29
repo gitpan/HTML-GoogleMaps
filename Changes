@@ -12,3 +12,9 @@ Revision history for Perl extension HTML::GoogleMaps.
 3     Jan 18, 2006
         By default, wrap popup html in a 350px by 250px
         Split up the output of render into three parts to help IE support
+
+4     April 29, 2006
+        Switched over to the new v2 map API
+        Added v2_zoom method to access the new hi-res zoom levels.  The old
+          zoom method is deprecated and will probably be replace by v2_zoom 
+          in a future release.

@@ -1,81 +1,90 @@
 #!/usr/bin/perl -w
 
 use Test::More 'no_plan';
+use strict;
+use blib;
 
-package Catch;
-
-sub TIEHANDLE {
-    my($class, $var) = @_;
-    return bless { var => $var }, $class;
-}
-
-sub PRINT  {
-    my($self) = shift;
-    ${'main::'.$self->{var}} .= join '', @_;
-}
-
-sub OPEN  {}    # XXX Hackery in case the user redirects
-sub CLOSE {}    # XXX STDERR/STDOUT.  This is not the behavior we want.
-
-sub READ {}
-sub READLINE {}
-sub GETC {}
-sub BINMODE {}
-
-my $Original_File = 'lib/HTML/GoogleMaps.pm';
-
-package main;
-
-# pre-5.8.0's warns aren't caught by a tied STDERR.
-$SIG{__WARN__} = sub { $main::_STDERR_ .= join '', @_; };
-tie *STDOUT, 'Catch', '_STDOUT_' or die $!;
-tie *STDERR, 'Catch', '_STDERR_' or die $!;
-
-{
-    undef $main::_STDOUT_;
-    undef $main::_STDERR_;
-#line 167 lib/HTML/GoogleMaps.pm
-
+BEGIN { use_ok('HTML::GoogleMaps') }
 use HTML::GoogleMaps;
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [0, 0]);
-is_deeply($map->_find_center, [0, 0], "Single point 1");
+# Autocentering
+{
+    my $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [0, 0]);
+    is_deeply( $map->_find_center, [0, 0], "Single point 1" );
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [90, 0]);
-is_deeply($map->_find_center, [90, 0], "Single point 2");
+    $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [90, 0]);
+    is_deeply( $map->_find_center, [0, 90], "Single point 2" );
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [180, 45]);
-is_deeply($map->_find_center, [180, 45], "Single point 3");
+    $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [180, 45]);
+    is_deeply( $map->_find_center, [45, 180], "Single point 3" );
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [-90, -10]);
-is_deeply($map->_find_center, [-90, -10], "Single point 4");
+    $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [-90, -10]);
+    is_deeply( $map->_find_center, [-10, -90], "Single point 4" );
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [10, 10]);
-$map->add_marker(point => [20, 20]);
-is_deeply($map->_find_center, [15, 15], "Double point 1");
+    $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [10, 10]);
+    $map->add_marker(point => [20, 20]);
+    is_deeply( $map->_find_center, [15, 15], "Double point 1" );
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [-10, 10]);
-$map->add_marker(point => [-20, 20]);
-is_deeply($map->_find_center, [-15, 15], "Double point 2");
+    $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [-10, 10]);
+    $map->add_marker(point => [-20, 20]);
+    is_deeply( $map->_find_center, [15, -15], "Double point 2" );
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [10, 10]);
-$map->add_marker(point => [-10, -10]);
-is_deeply($map->_find_center, [0, 0], "Double point 3");
+    $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [10, 10]);
+    $map->add_marker(point => [-10, -10]);
+    is_deeply( $map->_find_center, [0, 0], "Double point 3" );
 
-$map = new HTML::GoogleMaps key => "foo";
-$map->add_marker(point => [-170, 0]);
-$map->add_marker(point => [150, 0]);
-is_deeply($map->_find_center, [170, 0], "Double point 4");
-
-
-    undef $main::_STDOUT_;
-    undef $main::_STDERR_;
+    $map = new HTML::GoogleMaps key => "foo";
+    $map->add_marker(point => [-170, 0]);
+    $map->add_marker(point => [150, 0]);
+    is_deeply( $map->_find_center, [0, 170], "Double point 4" );
 }
 
+# API v2 support
+{
+    my $map = new HTML::GoogleMaps key => 'foo';
+    my ($head, $html, $ctrl) = $map->render;
+    like( $head, qr/script.*v=2/, 'Point to v2 API' );
+
+    like( $ctrl, qr/Zoom.*13/, 'Proper v2 default zoom' );
+    $map->zoom(2);
+    is( $map->{zoom}, 15, 'v1 zoom function translates' );
+    $map->v2_zoom(3);
+    is( $map->{zoom}, 3, 'v2 zoom function works as expected' );
+    
+    $map->center([12,13]);
+    $map->add_marker(point => [13,14]);
+    $map->add_polyline(points => [ [14,15], [15,16] ]);
+    ($html, $head, $ctrl) = $map->render;
+    like( $ctrl, qr/setCenter.*GLatLng\(13, 12\)/, 
+	  'GLatLng for centering' );
+    like( $ctrl, qr/GMarker\(new GLatLng\(14, 13\)/, 
+	  'GLatLng for points' );
+    like( $ctrl, qr/GPolyline\(\[new GLatLng\(15, 14\)/, 
+	  'GLatLng for polylines' );
+
+    like( $ctrl, qr/setMapType\(G_NORMAL_MAP\)/, 'Proper v1 default type' );
+    $map->map_type('map_type');
+    ($html, $head, $ctrl) = $map->render;
+    like( $ctrl, qr/setMapType\(G_NORMAL_MAP\)/, 'Old map_type' );
+    $map->map_type('satellite_type');
+    ($html, $head, $ctrl) = $map->render;
+    like( $ctrl, qr/setMapType\(G_SATELLITE_MAP\)/, 'Old satellite_type' );
+    $map->map_type('normal');
+    ($html, $head, $ctrl) = $map->render;
+    like( $ctrl, qr/setMapType\(G_NORMAL_MAP\)/, 'New normal type' );
+    $map->map_type('satellite');
+    ($html, $head, $ctrl) = $map->render;
+    like( $ctrl, qr/setMapType\(G_SATELLITE_MAP\)/, 'New satellite type' );
+    $map->map_type('hybrid');
+    ($html, $head, $ctrl) = $map->render;
+    like( $ctrl, qr/setMapType\(G_HYBRID_MAP\)/, 'New hybrid type' );
+
+    like( $ctrl, qr/GMap2\(/, 'Use new GMap2 class' );
+}
