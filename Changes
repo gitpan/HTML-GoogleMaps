@@ -18,3 +18,7 @@ Revision history for Perl extension HTML::GoogleMaps.
         Added v2_zoom method to access the new hi-res zoom levels.  The old
           zoom method is deprecated and will probably be replace by v2_zoom 
           in a future release.
+
+5     June 17, 2006
+        Added support for geocoding with Geo::Coder::Google.  Geo::Coder::US 
+          support is deprecated.

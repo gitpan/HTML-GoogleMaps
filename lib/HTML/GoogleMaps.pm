@@ -4,8 +4,7 @@ HTML::GoogleMaps - a simple wrapper around the Google Maps API
 
 =head1 SYNOPSIS
 
-  $map = HTML::GoogleMaps->new(key => $map_key,
-                               db => $geo_coder_us_db);
+  $map = HTML::GoogleMaps->new(key => $map_key);
   $map->center(point => "1810 Melrose St, Madison, WI");
   $map->add_marker(point => "1210 W Dayton St, Madison, WI");
  
@@ -20,8 +19,8 @@ and 2.  The render method now returns three values instead of two.
 
 HTML::GoogleMaps provides a simple wrapper around the Google Maps
 API.  It allows you to easily create maps with markers, polylines and
-information windows.  If you have Geo::Coder::US installed, it will be
-able to do basic geocoding for US addresses.
+information windows.  Thanks to Geo::Coder::Google you can now look
+up locations around the world without having to install a local database.
 
 =head1 CONSTRUCTOR
 
@@ -35,11 +34,6 @@ You can get a key at http://maps.google.com/apis/maps/signup.html .
 Other valid options are:
 
 =over 4
-
-=item db => Geo::Coder::US database
-
-If given, the B<add_marker> and B<add_polyline> methods will be able
-to map US addresses, as well as longitude/latitude pairs.
 
 =item height => height in pixels
 
@@ -56,13 +50,6 @@ to map US addresses, as well as longitude/latitude pairs.
 =item $map->center($point)
 
 Center the map at a given point.
-
-=item $map->zoom($level)
-
-Set the old V1 zoom level (0 is finest).  Zoom levels may change
-without notice, and some time in the future this method will be
-replace by v2_zoom.  You should probably no use it and update any
-code that already does.
 
 =item $map->v2_zoom($level)
 
@@ -143,8 +130,9 @@ Nate Mueller <nate@cs.wisc.edu>
 package HTML::GoogleMaps;
 
 use strict;
+use Geo::Coder::Google;
 
-our $VERSION = 4;
+our $VERSION = 5;
 
 sub new
 {
@@ -159,30 +147,36 @@ sub new
         Geo::Coder::US->set_db($opts{db});
     }
     
-    bless { %opts,
-	    points => [],
-	    poly_lines => [] }, $class;
+    bless {
+      %opts,
+      points => [],
+      poly_lines => [],
+      geocoder => Geo::Coder::Google->new(apikey => $opts{key}),
+    }, $class;
 }
 
-sub _text_to_point
-{
-    my ($this, $point_text) = @_;
+sub _text_to_point {
+  my ($this, $point_text) = @_;
 
-    # IE, already a long/lat pair
-    return [reverse @$point_text] if ref($point_text) eq "ARRAY";
+  # IE, already a long/lat pair
+  return [reverse @$point_text] if ref($point_text) eq "ARRAY";
 
-    # US street address
-    if ($this->{db})
-    {
-	my ($point) = Geo::Coder::US->geocode($point_text);
-	if ($point->{lat})
-	{
-	    return [ $point->{lat}, $point->{long} ];
-	}
+  # US street address
+  if ($this->{db}) {
+    my ($point) = Geo::Coder::US->geocode($point_text);
+    if ($point->{lat}) {
+      return [ $point->{lat}, $point->{long} ];
     }
-
-    # Unknown
-    return 0;
+  } else {
+    my $location = $this->{geocoder}->geocode(location => $point_text);
+    return [
+      $location->{Point}{coordinates}[1],
+      $location->{Point}{coordinates}[0],
+    ];
+  }
+  
+  # Unknown
+  return 0;
 }
 
 sub _find_center
