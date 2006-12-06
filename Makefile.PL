@@ -4,7 +4,9 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'HTML::GoogleMaps',
     VERSION_FROM      => 'lib/HTML/GoogleMaps.pm',
-    PREREQ_PM         => { 'Geo::Coder::Google' => 0 },
+    PREREQ_PM         => {
+      'Geo::Coder::Google' => .02,
+    },
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/HTML/GoogleMaps.pm',
        AUTHOR         => 'Nathan Mueller <nate@cs.wisc.edu>') : ()),

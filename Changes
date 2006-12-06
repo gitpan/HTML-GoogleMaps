@@ -22,3 +22,11 @@ Revision history for Perl extension HTML::GoogleMaps.
 5     June 17, 2006
         Added support for geocoding with Geo::Coder::Google.  Geo::Coder::US 
           support is deprecated.
+
+6     December 5, 2006
+        Finally got around to putting out a new version
+        Check the version for Geo::Coder::Google, require .02 or greater
+        If not passed a key, die with the registration URL
+        Added ->map_id to set the ID for the map div
+        Respect ->dragging
+        Try to output something closer to XHTML

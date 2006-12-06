@@ -1,11 +1,14 @@
-# http://module-build.sourceforge.net/META-spec.html
-#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
-name:         HTML-GoogleMaps
-version:      5
-version_from: lib/HTML/GoogleMaps.pm
-installdirs:  site
-requires:
-    Geo::Coder::Google:            0
-
-distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.30
+--- #YAML:1.0
+name:                HTML-GoogleMaps
+version:             6
+abstract:            a simple wrapper around the Google Maps API
+license:             ~
+generated_by:        ExtUtils::MakeMaker version 6.31
+distribution_type:   module
+requires:     
+    Geo::Coder::Google:            0.02
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.2.html
+    version: 1.2
+author:
+    - Nathan Mueller <nate@cs.wisc.edu>

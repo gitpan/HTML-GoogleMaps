@@ -102,3 +102,28 @@ use HTML::GoogleMaps;
   like( $ctrl, qr/GMarker\(new GLatLng\(3925, 3463\)/, 
     'Geocoding with Geo::Coder::Google' );
 }
+
+# dragging
+{
+  my $map = HTML::GoogleMaps->new(key => 'foo');
+  $map->dragging(0);
+  my ($html, $head, $ctrl) = $map->render;
+  like( $ctrl, qr/map.disableDragging\(\);/, 'Disable dragging' );
+
+  $map->dragging(1);
+  ($html, $head, $ctrl) = $map->render;
+  unlike( $ctrl, qr/map.disableDragging\(\);/, 'Enable dragging' );
+}
+
+# map_id
+{
+  my $map = HTML::GoogleMaps->new(key => 'foo');
+  $map->map_id('electrometrical_nombles');
+  $map->add_marker(point => [21, 31]);
+  $map->add_polyline(points => [[21, 31], [22, 32]]);
+
+  my ($head, $div, $ctrl) = $map->render;
+  like( $div, qr/id="electrometrical_nombles"/, 'Correct map ID for div' );
+  like( $ctrl, qr/getElementById\("electrometrical_nombles"\)/,
+    'Find div by correct ID' );
+}
