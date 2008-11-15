@@ -143,7 +143,7 @@ package HTML::GoogleMaps;
 use strict;
 use Geo::Coder::Google;
 
-our $VERSION = 7;
+our $VERSION = 8;
 
 sub new {
   my ($class, %opts) = @_;

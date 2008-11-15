@@ -30,3 +30,8 @@ Revision history for Perl extension HTML::GoogleMaps.
         Added ->map_id to set the ID for the map div
         Respect ->dragging
         Try to output something closer to XHTML
+
+8     November 15, 2008
+	Several fixes from Manni Heumann:
+	  Documentation improvements
+	  You can now have single quotes in marker HTML
