@@ -127,3 +127,25 @@ use HTML::GoogleMaps;
   like( $ctrl, qr/getElementById\("electrometrical_nombles"\)/,
     'Find div by correct ID' );
 }
+
+# width and height
+{
+   my $map = HTML::GoogleMaps->new( key => 'foo', width => 11, height => 22 );
+   my ($head, $div, $ctrl) = $map->render;
+   like( $div, qr/width.+11px/, 'Correct width for div' );
+   like( $div, qr/height.+22px/, 'Correct height for div' );
+
+   $map = HTML::GoogleMaps->new( key => 'foo', width => '33%', height => '44em' );
+   ($head, $div, $ctrl) = $map->render;
+   like( $div, qr/width.+33%/, 'Correct width for div' );
+   like( $div, qr/height.+44em/, 'Correct height for div' );
+}
+
+# info window html
+{
+    my $map = HTML::GoogleMaps->new( key => 'foo' );
+    $map->add_marker( point => 'bar', html => qq|<a href="foo" title='bar'>baz</a>| );
+    my ($head, $div, $ctrl) = $map->render;
+    like( $ctrl, qr/href="foo"/, 'Escaped html in script' );
+    like( $ctrl, qr/title=\\'bar\\'/, 'Escaped html in script' );
+}

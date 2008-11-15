@@ -7,8 +7,9 @@ HTML::GoogleMaps - a simple wrapper around the Google Maps API
   use HTML::GoogleMaps
 
   $map = HTML::GoogleMaps->new(key => $map_key);
-  $map->center(point => "1810 Melrose St, Madison, WI");
+  $map->center("1810 Melrose St, Madison, WI");
   $map->add_marker(point => "1210 W Dayton St, Madison, WI");
+  $map->add_marker(point => [ 51, 0 ] );   # Greenwich
  
   my ($head, $map_div, $map_script) = $map->render;
 
@@ -37,9 +38,9 @@ Other valid options are:
 
 =over 4
 
-=item height => height in pixels
+=item height => height (in pixels or using your own unit)
 
-=item width => width in pixels
+=item width => width (in pixels or using your own unit)
 
 =back
 
@@ -93,7 +94,11 @@ are required except for info_window_anchor.
 
 =item $map->add_marker(point => $point, html => $info_window_html)
 
-Add a marker to the map at the given point.  If B<html> is specified,
+Add a marker to the map at the given point. A point can be a unique
+place name, like an address, or a pair of coordinates passed in as
+an arrayref: [ longituded, latitude ].
+
+If B<html> is specified,
 add a popup info window as well.  B<icon> can be used to switch to
 either a user defined icon (via the name) or a standard google letter
 icon (A-J).
@@ -138,7 +143,7 @@ package HTML::GoogleMaps;
 use strict;
 use Geo::Coder::Google;
 
-our $VERSION = 6;
+our $VERSION = 7;
 
 sub new {
   my ($class, %opts) = @_;
@@ -326,13 +331,20 @@ sub render {
 
   # Add in all the defaults
   $this->{id} ||= 'map';
-  $this->{height} ||= 400;
-  $this->{width} ||= 600;
+  $this->{height} ||= '400px';
+  $this->{width} ||= '600px';
   $this->{dragging} = 1 unless defined $this->{dragging};
   $this->{info_window} = 1 unless defined $this->{info_window};
   $this->{type} ||= "G_NORMAL_MAP";
   $this->{zoom} ||= 13;
   $this->{center} ||= $this->_find_center;
+
+  if ( $this->{width} =~ m/^\d+$/ ) {
+      $this->{width} .= 'px';
+  }
+  if ( $this->{height} =~ m/^\d+$/ ) {
+      $this->{height} .= 'px';
+  }
 
   my $header = sprintf(
     '<script src="http://maps.google.com/maps?file=api&amp;v=2&amp;key=%s" '
@@ -340,7 +352,7 @@ sub render {
     $this->{key},
   );
   my $map = sprintf(
-    '<div id="%s" style="width: %dpx; height: %dpx"></div>',
+    '<div id="%s" style="width: %s; height: %s"></div>',
     $this->{id},
     $this->{width},
     $this->{height},
@@ -420,8 +432,10 @@ SCRIPT
     }
 
     $text .= "      var marker_$i = new GMarker(new GLatLng($point->{point}[0], $point->{point}[1]) $icon);\n";
+    if ( $point->{html} ) {
+        $point_html =~ s/'/\\'/g;
     $text .= "      GEvent.addListener(marker_$i, \"click\", function () {  marker_$i.openInfoWindowHtml('$point_html'); });\n"
-      if $point->{html};
+    }
     $text .= "      map.addOverlay(marker_$i);\n";
   }
 
