@@ -84,7 +84,7 @@ Set the id of the map div
 =item $map->add_icon(name => $icon_name,
                      image => $image_url,
                      shadow => $shadow_url,
-                     image_size => [ $width, $height ],
+                     icon_size => [ $width, $height ],
                      shadow_size => [ $width, $height ],
                      icon_anchor => [ $x, $y ],
                      info_window_anchor => [ $x, $y ]);
@@ -123,10 +123,6 @@ but outside any div or table that the map lies inside of.
 
 =back
 
-=head1 ONLINE EXAMPLE
-
-L<http://www.cs.wisc.edu/~nmueller/fsbo_open_houses.pl>
-
 =head1 SEE ALSO
 
 L<http://www.google.com/apis/maps>
@@ -143,7 +139,7 @@ package HTML::GoogleMaps;
 use strict;
 use Geo::Coder::Google;
 
-our $VERSION = 8;
+our $VERSION = 9;
 
 sub new {
   my ($class, %opts) = @_;
@@ -359,7 +355,7 @@ sub render {
   );
 
   my $text = <<SCRIPT;
-    <script type=\"text/javascript\" />
+    <script type=\"text/javascript\">
     //<![CDATA[
 
     if (GBrowserIsCompatible()) {

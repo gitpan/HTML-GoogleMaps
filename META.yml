@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                HTML-GoogleMaps
-version:             8
+version:             9
 abstract:            a simple wrapper around the Google Maps API
 license:             ~
 author:              
