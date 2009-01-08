@@ -39,3 +39,7 @@ Revision history for Perl extension HTML::GoogleMaps.
 9     December 6, 2009
 	Fixed RT #39258, courtesy Rodney Webster
 	Fixed RT #17232, courtesy of Simon Flack
+
+10    December 7, 2009
+	Deprecated ->render and replaced it with ->onload_render.  Should
+	  give better browser performance and support.

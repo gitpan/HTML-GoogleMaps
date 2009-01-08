@@ -11,7 +11,7 @@ HTML::GoogleMaps - a simple wrapper around the Google Maps API
   $map->add_marker(point => "1210 W Dayton St, Madison, WI");
   $map->add_marker(point => [ 51, 0 ] );   # Greenwich
  
-  my ($head, $map_div, $map_script) = $map->render;
+  my ($head, $map_div) = $map->onload_render;
 
 =head1 NOTE
 
@@ -115,11 +115,25 @@ pixels) and B<opacity> (between 0 and 1).
 
 =item $map->render
 
+B<DEPRECATED -- please use onload_render intead, it will give you
+better javascript.>
+
 Renders the map and returns a three element list.  The first element
 needs to be placed in the head section of your HTML document.  The
 second in the body where you want the map to appear.  The third (the 
 Javascript that controls the map) needs to be placed in the body,
 but outside any div or table that the map lies inside of.
+
+=item $map->onload_render
+
+Renders the map and returns a two element list.  The first element
+needs to be placed in the head section of your HTML document.  The
+second in the body where you want the map to appear.  You will also 
+need to add a call to html_googlemaps_initialize() in your page's 
+onload handler.  The easiest way to do this is adding it to the body
+tag:
+
+    <body onload="html_googlemaps_initialize()">
 
 =back
 
@@ -139,7 +153,7 @@ package HTML::GoogleMaps;
 use strict;
 use Geo::Coder::Google;
 
-our $VERSION = 9;
+our $VERSION = 10;
 
 sub new {
   my ($class, %opts) = @_;
@@ -170,7 +184,7 @@ sub _text_to_point {
   if ($this->{db}) {
     my ($point) = Geo::Coder::US->geocode($point_text);
     if ($point->{lat}) {
-      return [ $point->{lat}, $point->{long} ];
+      return [$point->{lat}, $point->{long}];
     }
   } else {
     my $location = $this->{geocoder}->geocode(location => $point_text);
@@ -210,16 +224,15 @@ sub _find_center {
   return [ $center_lat, $avg_long ] # All points are on the
     if abs($avg_long) == $avg_abs_long; # same hemasphere
 
-  if ($avg_abs_long > 90)       # Closer to the IDL
-    {
-      if ($avg_long < 0 && abs($avg_long) <= 90) {
-        $avg_long += 180;
-      } elsif (abs($avg_long) <= 90) {
-        $avg_long -= 180;
-      }
+  if ($avg_abs_long > 90) {      # Closer to the IDL
+    if ($avg_long < 0 && abs($avg_long) <= 90) {
+      $avg_long += 180;
+    } elsif (abs($avg_long) <= 90) {
+      $avg_long -= 180;
     }
+  }
 
-  return [ $center_lat, $avg_long ];
+  return [$center_lat, $avg_long];
 }
 
 sub center {
@@ -322,7 +335,7 @@ sub add_polyline {
     opacity => $opts{opacity} || .5 };
 }
 
-sub render {
+sub onload_render {
   my ($this) = @_;
 
   # Add in all the defaults
@@ -354,29 +367,29 @@ sub render {
     $this->{height},
   );
 
-  my $text = <<SCRIPT;
-    <script type=\"text/javascript\">
+  $header .= <<SCRIPT;
+<script type=\"text/javascript\">
     //<![CDATA[
-
+  function html_googlemaps_initialize() {    
     if (GBrowserIsCompatible()) {
       var map = new GMap2(document.getElementById("$this->{id}"));
 SCRIPT
-  $text .= "      map.setCenter(new GLatLng($this->{center}[0], $this->{center}[1]));\n"
+  $header .= "      map.setCenter(new GLatLng($this->{center}[0], $this->{center}[1]));\n"
     if $this->{center};
-  $text .= "      map.setZoom($this->{zoom});\n"
+  $header .= "      map.setZoom($this->{zoom});\n"
     if $this->{zoom};
 
-  $text .= "      map.setMapType($this->{type});\n";
-    
+  $header .= "      map.setMapType($this->{type});\n";
+
   if ($this->{controls}) {
     foreach my $control (@{$this->{controls}}) {
       $control =~ s/_(.)/uc($1)/ge;
       $control = ucfirst($control);
-      $text .= "      map.addControl(new G${control}());\n";
+      $header .= "      map.addControl(new G${control}());\n";
     }
   }
   unless ($this->{dragging}) {
-    $text .= "      map.disableDragging();\n";
+    $header .= "      map.disableDragging();\n";
   }
 
   # Add in "standard" icons
@@ -384,7 +397,7 @@ SCRIPT
     grep { defined $_->{icon} && $_->{icon} =~ /^([A-J])$/; } 
       @{$this->{points}};
   foreach my $icon (keys %icons) {
-    $text .= "      var icon_$icon = new GIcon();
+    $header .= "      var icon_$icon = new GIcon();
       icon_$icon.shadow = \"http://www.google.com/mapfiles/shadow50.png\";
       icon_$icon.iconSize = new GSize(20, 34);
       icon_$icon.shadowSize = new GSize(37, 34);
@@ -395,24 +408,24 @@ SCRIPT
 
   # And the rest
   foreach my $icon (@{$this->{icons}}) {
-    $text .= "      var icon_$icon->{name} = new GIcon();\n";
-    $text .= "      icon_$icon->{name}.shadow = \"$icon->{shadow}\"\n"
+    $header .= "      var icon_$icon->{name} = new GIcon();\n";
+    $header .= "      icon_$icon->{name}.shadow = \"$icon->{shadow}\"\n"
       if $icon->{shadow};
-    $text .= "      icon_$icon->{name}.iconSize = new GSize($icon->{icon_size}[0], $icon->{icon_size}[1]);\n"
+    $header .= "      icon_$icon->{name}.iconSize = new GSize($icon->{icon_size}[0], $icon->{icon_size}[1]);\n"
       if ref($icon->{icon_size}) eq "ARRAY";
-    $text .= "      icon_$icon->{name}.shadowSize = new GSize($icon->{shadow_size}[0], $icon->{shadow_size}[1]);\n"
+    $header .= "      icon_$icon->{name}.shadowSize = new GSize($icon->{shadow_size}[0], $icon->{shadow_size}[1]);\n"
       if ref($icon->{shadow_size}) eq "ARRAY";
-    $text .= "      icon_$icon->{name}.iconAnchor = new GPoint($icon->{icon_anchor}[0], $icon->{icon_anchor}[1]);\n"
+    $header .= "      icon_$icon->{name}.iconAnchor = new GPoint($icon->{icon_anchor}[0], $icon->{icon_anchor}[1]);\n"
       if ref($icon->{icon_anchor}) eq "ARRAY";
-    $text .= "      icon_$icon->{name}.infoWindowAnchor = new GPoint($icon->{info_window_anchor}[0], $icon->{info_window_anchor}[1]);\n"
+    $header .= "      icon_$icon->{name}.infoWindowAnchor = new GPoint($icon->{info_window_anchor}[0], $icon->{info_window_anchor}[1]);\n"
       if ref($icon->{info_window_anchor}) eq "ARRAY";
-    $text .= "      icon_$icon->{name}.image = \"$icon->{image}\";\n\n";
+    $header .= "      icon_$icon->{name}.image = \"$icon->{image}\";\n\n";
   }
-    
+
   my $i;
   foreach my $point (@{$this->{points}}) {
     $i++;
-	
+
     my $icon = '';
     if (defined $point->{icon}) {
       $point->{icon} =~ s/(.+)/icon_$1/;
@@ -427,27 +440,36 @@ SCRIPT
       );
     }
 
-    $text .= "      var marker_$i = new GMarker(new GLatLng($point->{point}[0], $point->{point}[1]) $icon);\n";
+    $header .= "      var marker_$i = new GMarker(new GLatLng($point->{point}[0], $point->{point}[1]) $icon);\n";
     if ( $point->{html} ) {
         $point_html =~ s/'/\\'/g;
-    $text .= "      GEvent.addListener(marker_$i, \"click\", function () {  marker_$i.openInfoWindowHtml('$point_html'); });\n"
+    $header .= "      GEvent.addListener(marker_$i, \"click\", function () {  marker_$i.openInfoWindowHtml('$point_html'); });\n"
     }
-    $text .= "      map.addOverlay(marker_$i);\n";
+    $header .= "      map.addOverlay(marker_$i);\n";
   }
 
   $i = 0;
   foreach my $polyline (@{$this->{poly_lines}}) {
     $i++;
     my $points = "[" . join(", ", map { "new GLatLng($_->[0], $_->[1])" } @{$polyline->{points}}) . "]";
-    $text .= "      var polyline_$i = new GPolyline($points, \"$polyline->{color}\", $polyline->{weight}, $polyline->{opacity});\n";
-    $text .= "      map.addOverlay(polyline_$i);\n";
+    $header .= "      var polyline_$i = new GPolyline($points, \"$polyline->{color}\", $polyline->{weight}, $polyline->{opacity});\n";
+    $header .= "      map.addOverlay(polyline_$i);\n";
   }
 
-  $text .= "    }
-
+  $header .= "    }
+  }
     //]]>
     </script>";
-  
+
+  return ($header, $map);
+}
+
+sub render {
+  my ($this) = @_;
+  my ($header, $map) = $this->onload_render;
+  ($header, my $text) = split(/\n/, $header, 2);
+  $text =~ s/(.*})/$1\n  html_googlemaps_initialize();/s;
+
   return ($header, $map, $text);
 }
 
